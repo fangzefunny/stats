@@ -1,3 +1,12 @@
+"""Pingouin-based helpers for common statistical tests.
+
+Use either style:
+
+- ``import stats`` then ``stats.t_test(...)``, ``stats.anova(...)``, etc.
+- ``from stats import stats`` then ``stats.t_test(...)`` (same functions on a
+  :class:`~types.SimpleNamespace` for a single import target).
+"""
+
 import types
 
 import pingouin as pg
