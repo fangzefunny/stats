@@ -7,6 +7,7 @@ Use either style:
   :class:`~types.SimpleNamespace` for a single import target).
 """
 
+import math
 import types
 
 import pingouin as pg
@@ -94,12 +95,19 @@ def partial_corr(data, x, y, covar, method="pearson", title="", p_bar=0.05):
 
 
 def anova(dv, between, data, all_table=False, p_bar=0.05):
-    df = pg.anova(dv=dv, between=between, data=data).rename(
+    # detailed=True: one-way pingouin defaults to ddof1/ddof2 without a DF column,
+    # which breaks printing below (see pingouin parametric.anova).
+    df = pg.anova(dv=dv, between=between, data=data, detailed=True).rename(
         columns={"p-unc": "punc"}
     )
     sig_df = df if all_table else df.query(f"punc<={p_bar}")
     dof2 = int(df["DF"].values[-1])
     for _, row in sig_df.iterrows():
+        try:
+            if math.isnan(float(row["F"])):
+                continue
+        except (TypeError, ValueError):
+            pass
         title = row["Source"]
         dof1 = int(row["DF"])
         F = row["F"]
@@ -107,10 +115,10 @@ def anova(dv, between, data, all_table=False, p_bar=0.05):
         np2 = row["np2"]
         print(f"\t{title}:\tF({dof1}, {dof2})={F:.3f}, p={p:.3f}, np2={np2:.3f}")
     if not all_table:
-        other_df = df.query("punc>.05")
+        other_df = df.query(f"punc>{p_bar}")
         if other_df.shape[0] > 0:
             other_min_p = other_df["punc"].min()
-            print(f"\tOther: \tp>={other_min_p:.3f}")
+            print(f"\tOther: \tp>{p_bar}, min p={other_min_p:.3f}")
     return df
 
 
@@ -127,13 +135,16 @@ def linear_regression(
     df = pg.linear_regression(
         X=x, y=y, add_intercept=add_intercept, remove_na=remove_na
     )
-    beta0 = df["coef"][0]
-    beta1 = df["coef"][1]
-    pval = df["pval"][1]
+    slope_idx = 1 if add_intercept else 0
+    beta1 = float(df["coef"].iloc[slope_idx])
+    pval = float(df["pval"].iloc[slope_idx])
+    if add_intercept:
+        beta0 = float(df["coef"].iloc[0])
+        eq = f"{y_var}={beta1:.3f}{x_var}+{beta0:.3f}"
+    else:
+        eq = f"{y_var}={beta1:.3f}{x_var}"
     if pval <= p_bar:
-        print(
-            f"{title}\t{y_var}={beta1:.3f}{x_var}+{beta0:.3f},\n\tp={pval:.3f}"
-        )
+        print(f"{title}\t{eq},\n\tp={pval:.3f}")
     return df
 
 
